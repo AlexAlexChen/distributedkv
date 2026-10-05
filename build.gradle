@@ -1,0 +1,114 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.google.protobuf' version '0.9.1'
+}
+
+group = 'com.distributedkv'
+version = '1.0-SNAPSHOT'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Core dependencies
+    implementation 'com.google.guava:guava:31.1-jre'
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'commons-io:commons-io:2.11.0'
+
+    // Logging
+    implementation 'org.apache.logging.log4j:log4j-api:2.17.2'
+    implementation 'org.apache.logging.log4j:log4j-core:2.17.2'
+    implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.2'
+
+    // Protobuf and networking
+    implementation 'com.google.protobuf:protobuf-java:3.21.7'
+    implementation 'io.netty:netty-all:4.1.86.Final'
+    implementation 'com.google.code.gson:gson:2.10'
+
+    // Storage
+    implementation 'org.rocksdb:rocksdbjni:7.7.3'
+
+    // Metrics
+    implementation 'io.micrometer:micrometer-core:1.10.2'
+    implementation 'io.micrometer:micrometer-registry-prometheus:1.10.2'
+
+    // Command line interface
+    implementation 'info.picocli:picocli:4.7.0'
+
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.9.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.2'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.11.0'
+
+    // Benchmarking
+    testImplementation 'org.openjdk.jmh:jmh-core:1.35'
+    testAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.35'
+}
+
+// For protobuf compilation
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.21.7'
+    }
+}
+
+application {
+    mainClass = 'com.distributedkv.Main'
+}
+
+// This configuration ensures JUnit 5 tests are properly run
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+// Configure Java compiler options
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:unchecked', '-Xlint:deprecation']
+}
+
+// Create a fat JAR with all dependencies
+tasks.register('fatJar', Jar) {
+    archiveClassifier = 'all'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes 'Main-Class': 'com.distributedkv.Main'
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    with jar
+}
+
+// Task to create distribution package
+tasks.register('packageDistribution', Zip) {
+    dependsOn fatJar
+    archiveBaseName = 'distributedkv'
+    archiveClassifier = ''
+    archiveVersion = version
+
+    from('bin') {
+        include '*.sh'
+        fileMode = 0755
+    }
+    from('config') {
+        include '*.conf'
+        into 'config'
+    }
+    from('build/libs') {
+        include "${project.name}-${version}-all.jar"
+        into 'lib'
+    }
+    from('docs') {
+        include '*.md'
+        into 'docs'
+    }
+}
